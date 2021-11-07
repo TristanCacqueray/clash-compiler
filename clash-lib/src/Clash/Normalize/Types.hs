@@ -2,7 +2,7 @@
   Copyright  :  (C) 2012-2016, University of Twente,
                          2017, Google Inc.
   License    :  BSD2 (see the file LICENSE)
-  Maintainer :  Christiaan Baaij <christiaan.baaij@gmail.com>
+  Maintainer :  QBayLogic B.V. <devops@qbaylogic.com>
 
   Types used in Normalize modules
 -}
@@ -24,13 +24,14 @@ import Clash.Core.VarEnv      (VarEnv)
 import Clash.Driver.Types     (BindingMap)
 import Clash.Primitives.Types (CompiledPrimMap)
 import Clash.Rewrite.Types    (Rewrite, RewriteMonad)
+import Clash.Core.Subst       (Aeq)
 
 -- | State of the 'NormalizeMonad'
 data NormalizeState
   = NormalizeState
   { _normalized          :: BindingMap
   -- ^ Global binders
-  , _specialisationCache :: Map (Id,Int,Either Term Type) Id
+  , _specializationCache :: Map (Id, Int, Either (Aeq Term) (Aeq Type)) Id
   -- ^ Cache of previously specialized functions:
   --
   -- * Key: (name of the original function, argument position, specialized term/type)

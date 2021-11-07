@@ -11,6 +11,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Clash.Normalize.Util
  ( ConstantSpecInfo(..)
@@ -480,7 +481,8 @@ tvSubstWithTyEq ty0 = go [] False ty0
     , nameUniq tc == getKey eqTyConKey
     , Just (tv,ty) <- tvFirst tcArgs
     = let
-        argsOut2 = Right arg : (argsOut List.\\ [Left tv])
+        isLeftTv = either (==tv) (const False)
+        argsOut2 = Right arg : filter isLeftTv argsOut
         subst = extendTvSubst (mkSubst $ mkInScopeSet $ mkVarSet $ lefts argsOut2) tv ty
       in go argsOut2 True  (substTy subst tyRes)
     | otherwise = go (Right arg : argsOut) changed tyRes

@@ -46,6 +46,8 @@ import qualified Data.IntSet             as IntSet
 import           Control.Applicative     (Alternative((<|>)))
 import           Data.List               (unzip4, partition)
 import qualified Data.List               as List
+import qualified Data.Map                as Map
+import           Data.Map                (Map)
 import           Data.Maybe
   (catMaybes, fromMaybe, isNothing, mapMaybe, isJust, listToMaybe, maybeToList)
 import           Text.Printf             (printf)
@@ -83,10 +85,10 @@ import           Clash.Core.Name
 import           Clash.Core.Pretty       (showPpr)
 import           Clash.Core.Subst
   (Subst (..), extendIdSubst, extendIdSubstList, extendInScopeId,
-   extendInScopeIdList, mkSubst, substTm)
+   extendInScopeIdList, mkSubst, substTm, Aeq (Aeq))
 import           Clash.Core.Term
   (primMultiResult, MultiPrimInfo(..), Alt, LetBinding, Pat (..), Term (..), TickInfo (..), NameMod (..),
-   IsMultiPrim (..), collectArgsTicks, collectTicks, collectBndrs, PrimInfo(primName), mkTicks, stripTicks)
+   IsMultiPrim (..), collectArgsTicks, collectTicks, collectBndrs, PrimInfo(primName), mkTicks, stripTicks, aeqTickInfo)
 import           Clash.Core.TermInfo
 import           Clash.Core.TyCon
   (TyCon (FunTyCon), TyConName, TyConMap, tyConDataCons)
@@ -366,19 +368,19 @@ coreTypeToHWType
   -- ^ Type to convert to HWType
   -> State HWMap (Either String FilteredHWType)
 coreTypeToHWType builtInTranslation reprs m ty = do
-  htyM <- HashMap.lookup ty <$> get
+  htyM <- Map.lookup (Aeq ty) <$> get
   case htyM of
     Just hty -> return hty
     _ -> do
       hty0M <- builtInTranslation reprs m ty
       hty1  <- go hty0M ty
-      modify (HashMap.insert ty hty1)
+      modify (Map.insert (Aeq ty) hty1)
       return hty1
  where
   -- Try builtin translation; for now this is hardcoded to be the one in ghcTypeToHWType
   go :: Maybe (Either String FilteredHWType)
      -> Type
-     -> State (HashMap Type (Either String FilteredHWType))
+     -> State (Map (Aeq Type) (Either String FilteredHWType))
               (Either String FilteredHWType)
   go (Just hwtyE) _ = pure $ maybeConvertToCustomRepr reprs ty <$> hwtyE
   -- Strip transparant types:
@@ -642,7 +644,7 @@ representableType
   -> Bool
 representableType builtInTranslation reprs stringRepresentable m =
     either (const False) isRepresentable .
-    flip evalState HashMap.empty .
+    flip evalState Map.empty .
     coreTypeToHWType' builtInTranslation reprs m
   where
     isRepresentable hty = case hty of
@@ -1638,7 +1640,7 @@ withTicks
   -- environment for the NetlistMonad computation.
   -> NetlistMonad a
 withTicks ticks0 k = do
-  let ticks1 = List.nub ticks0
+  let ticks1 = List.nubBy aeqTickInfo ticks0
   go [] (reverse ticks1)
  where
   go decls [] = k (reverse decls)

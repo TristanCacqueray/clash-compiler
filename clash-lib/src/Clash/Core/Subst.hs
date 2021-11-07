@@ -9,6 +9,7 @@
 -}
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -52,6 +53,7 @@ module Clash.Core.Subst
   , freshenTm
   , deshadowLetExpr
     -- * Alpha equivalence
+  , Aeq (Aeq)
   , aeqType
   , aeqTerm
   )
@@ -81,6 +83,23 @@ import           Clash.Debug               (debugIsOn)
 import           Clash.Unique
 import           Clash.Util
 import           Clash.Pretty
+
+-- | Newtype overriding the 'Eq' and 'Ord' instance to account for alpha
+-- equivalency.
+newtype Aeq a = Aeq a
+  deriving Show
+
+instance Eq (Aeq Term) where
+  (==) = coerce aeqTerm
+
+instance Ord (Aeq Term) where
+  compare = coerce acmpTerm
+
+instance Eq (Aeq Type) where
+  (==) = coerce aeqType
+
+instance Ord (Aeq Type) where
+  compare = coerce acmpType
 
 -- * Subst
 
@@ -938,15 +957,3 @@ acmpTerm' inScope = go (mkRnEnv inScope)
 thenCompare :: Ordering -> Ordering -> Ordering
 thenCompare EQ rel = rel
 thenCompare rel _  = rel
-
-instance Eq Type where
-  (==) = aeqType
-
-instance Ord Type where
-  compare = acmpType
-
-instance Eq Term where
-  (==) = aeqTerm
-
-instance Ord Term where
-  compare = acmpTerm

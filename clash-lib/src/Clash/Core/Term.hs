@@ -32,6 +32,7 @@ module Clash.Core.Term
   , patVars
   , Alt
   , TickInfo (..)
+  , aeqTickInfo
   , stripTicks
   , partitionTicks
   , NameMod (..)
@@ -62,7 +63,7 @@ import Data.Either                             (lefts, rights)
 import Data.Foldable                           (foldl')
 import Data.Maybe                              (catMaybes)
 import Data.Hashable                           (Hashable)
-import Data.List                               (nub, partition)
+import Data.List                               (partition, nubBy)
 import Data.Text                               (Text)
 import GHC.Generics
 #if MIN_VERSION_ghc(9,0,0)
@@ -75,7 +76,7 @@ import SrcLoc                                  (SrcSpan)
 import Clash.Core.DataCon                      (DataCon)
 import Clash.Core.Literal                      (Literal)
 import Clash.Core.Name                         (Name (..))
-import {-# SOURCE #-} Clash.Core.Subst         () -- instance Eq Type
+import {-# SOURCE #-} Clash.Core.Subst         (Aeq(Aeq), aeqType)
 import {-# SOURCE #-} Clash.Core.Type          (Type)
 import Clash.Core.Var                          (Var, Id, TyVar)
 import Clash.Util                              (curLoc)
@@ -108,7 +109,17 @@ data TickInfo
   | NoDeDup
   -- ^ Do not deduplicate, i.e. /keep/, an expression inside a case-alternative;
   -- do not try to share expressions between multiple branches.
-  deriving (Eq,Show,Generic,NFData,Hashable,Binary)
+  deriving (Show,Generic,NFData,Hashable,Binary)
+
+instance Eq (Aeq TickInfo) where
+  (==) = coerce aeqTickInfo
+
+aeqTickInfo :: TickInfo -> TickInfo -> Bool
+aeqTickInfo (SrcSpan sp0) (SrcSpan sp1) = sp0 == sp1
+aeqTickInfo DeDup DeDup = True
+aeqTickInfo NoDeDup NoDeDup = True
+aeqTickInfo (NameMod nm0 t0) (NameMod nm1 t1)= nm0 == nm1 && t0 `aeqType` t1
+aeqTickInfo _ _ = False
 
 -- | Tag to indicate which instance/register name modifier was used
 data NameMod
@@ -220,7 +231,7 @@ mkTyApps :: Term -> [Type] -> Term
 mkTyApps = foldl' TyApp
 
 mkTicks :: Term -> [TickInfo] -> Term
-mkTicks tm ticks = foldl' (\e s -> Tick s e) tm (nub ticks)
+mkTicks tm ticks = foldl' (\e s -> Tick s e) tm (nubBy aeqTickInfo ticks)
 
 -- | Context in which a term appears
 data CoreContext
@@ -277,7 +288,7 @@ instance Eq CoreContext where
     (CaseAlt p,       CaseAlt p')        -> p == p'
     (CaseScrut,       CaseScrut)         -> True
     (CastBody,        CastBody)          -> True
-    (TickC sp,        TickC sp')         -> sp == sp'
+    (TickC sp,        TickC sp')         -> sp `aeqTickInfo` sp'
     (_,               _)                 -> False
 
 -- | Is the Context a Lambda/Term-abstraction context?

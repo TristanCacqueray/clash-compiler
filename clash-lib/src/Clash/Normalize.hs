@@ -54,7 +54,7 @@ import           Clash.Core.HasType
 import           Clash.Core.PartialEval as PE     (Evaluator)
 import           Clash.Core.Pretty                (PrettyOptions(..), showPpr, showPpr', ppr)
 import           Clash.Core.Subst
-  (extendGblSubstList, mkSubst, substTm)
+  (extendGblSubstList, mkSubst, substTm, aeqType)
 import           Clash.Core.Term                  (Term (..), collectArgsTicks
                                                   ,mkApps, mkTicks)
 import           Clash.Core.Type                  (Type, splitCoreFunForallTy)
@@ -194,7 +194,7 @@ normalize' nm = do
               Clash can only normalize monomorphic functions, but this is polymorphic:
               #{showPpr' def{displayUniques=False\} nm'}
               |]
-            msgExtra | ty0 == ty1 = Nothing
+            msgExtra | ty0 `aeqType` ty1 = Nothing
                      | otherwise = Just $ [i|
               Even after applying type equality constraints it remained polymorphic:
               #{showPpr' def{displayUniques=False\} nm'{varType=ty1\}}

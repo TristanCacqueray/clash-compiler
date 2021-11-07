@@ -509,7 +509,7 @@ caseFlat _ e = return e
 
 collectFlat :: Term -> Term -> Maybe [Alt]
 collectFlat scrut (Case (collectEqArgs -> Just (scrut', val)) _ty [lAlt,rAlt])
-  | scrut' == scrut
+  | scrut' `aeqTerm` scrut
   = case collectArgs val of
       (Prim p,args') | isFromInt (primName p) ->
         go (last args')
@@ -611,7 +611,7 @@ caseOneAlt e@(Case _ _ [(pat,altE)]) =
       -> return e
 
 caseOneAlt (Case _ _ alts@((pat,alt):_:_))
-  | all ((== alt) . snd) (tail alts)
+  | all ((`aeqTerm` alt) . snd) (tail alts)
   , (tvs,xs) <- patIds pat
   , (coerce tvs ++ coerce xs) `localVarsDoNotOccurIn` alt
   = changed alt

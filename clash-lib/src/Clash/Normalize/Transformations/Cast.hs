@@ -30,6 +30,7 @@ import Clash.Rewrite.Types
 import Clash.Rewrite.Util (changed, mkDerivedName, mkTmBinderFor)
 import Clash.Rewrite.WorkFree (isWorkFree)
 import Clash.Util (ClashException(..), curLoc)
+import Clash.Core.Subst (aeqType)
 
 -- | Push cast over an argument to a function into that function
 --
@@ -93,7 +94,7 @@ elimCastCast _ c@(Cast (stripTicks -> Cast e tyA tyB) tyB' tyC) = do
       ntyB  = normalizeType tcm tyB
       ntyB' = normalizeType tcm tyB'
       ntyC  = normalizeType tcm tyC
-  if ntyB == ntyB' && ntyA == ntyC then changed e
+  if ntyB `aeqType` ntyB' && ntyA `aeqType` ntyC then changed e
                                    else throwError
   where throwError = do
           (nm,sp) <- Lens.use curFun

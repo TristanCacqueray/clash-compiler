@@ -47,5 +47,5 @@ tests =
   testGroup
     "Clash.Tests.Core.Subst"
     [ testCase "deShadow type/term" $
-        term1 @=? deShadowTerm (extendInScopeSet emptyInScopeSet termVar) term1
+        Aeq term1 @=? Aeq (deShadowTerm (extendInScopeSet emptyInScopeSet termVar) term1)
     ]

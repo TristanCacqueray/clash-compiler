@@ -91,7 +91,7 @@ import Clash.Rewrite.Util
   , normalizeTermTypes, normalizeId)
 import Clash.Rewrite.WorkFree (isWorkFree)
 import Clash.Normalize.Types
-  ( NormRewrite, NormalizeSession, specialisationCache, specialisationHistory
+  ( NormRewrite, NormalizeSession, specializationCache, specialisationHistory
   , specialisationLimit)
 import Clash.Normalize.Util
   (constantSpecInfo, csrFoundConstant, csrNewBindings, csrNewTerm)
@@ -303,7 +303,7 @@ specialize ctx e = case e of
   (App e1 e2)   -> specialize' ctx e (collectArgsTicks e1) (Left  e2)
   _             -> return e
 
--- | Specialise an application on its argument
+-- | Specialize an application on its argument
 specialize'
   :: TransformContext
   -- ^ Transformation context
@@ -318,7 +318,7 @@ specialize' (TransformContext is0 _) e (Var f, args, ticks) specArgIn = do
   opts <- Lens.view debugOpts
   tcm <- Lens.view tcCache
 
-  -- Don't specialise TopEntities
+  -- Don't specialize TopEntities
   topEnts <- Lens.view topEntities
   if f `elemVarSet` topEnts
   then do
@@ -347,7 +347,7 @@ specialize' (TransformContext is0 _) e (Var f, args, ticks) specArgIn = do
       specAbs :: Either Term Type
       specAbs = either (Left . (`mkAbstraction` specBndrs)) (Right . id) specArg
   -- Determine if 'f' has already been specialized on (a type-normalized) 'specArg'
-  specM <- Map.lookup (f,argLen,specAbs) <$> Lens.use (extra.specialisationCache)
+  specM <- Map.lookup (f, argLen, coerce specAbs) <$> Lens.use (extra.specializationCache)
   case specM of
     -- Use previously specialized function
     Just f' ->
@@ -410,7 +410,7 @@ specialize' (TransformContext is0 _) e (Var f, args, ticks) specArgIn = do
               newf <- mkFunction (varName fId) sp inl' newBody
               -- Remember specialization
               (extra.specialisationHistory) %= extendUniqMapWith f 1 (+)
-              (extra.specialisationCache)  %= Map.insert (f,argLen,specAbs) newf
+              (extra.specializationCache)  %= Map.insert (f, argLen, coerce specAbs) newf
               -- use specialized function
               let newExpr = mkApps (mkTicks (Var newf) ticks) (args ++ specVars)
               newf `deepseq` changed newExpr

@@ -91,6 +91,7 @@ import Clash.Rewrite.Combinators (bottomupR)
 import Clash.Rewrite.Types
 import Clash.Rewrite.Util (changed, isUntranslatableType)
 import Clash.Rewrite.WorkFree (isConstant)
+import Clash.Core.Subst (Aeq(Aeq))
 import Clash.Unique (lookupUniqMap)
 import Clash.Util (MonadUnique, curLoc)
 
@@ -232,21 +233,23 @@ data CaseTree a
   = Leaf a
   | LB [LetBinding] (CaseTree a)
   | Branch Term [(Pat,CaseTree a)]
-  deriving (Eq,Show,Functor,Foldable)
+  deriving (Show,Functor,Foldable)
 
 -- | Test if a 'CaseTree' collected from an expression indicates that
 -- application of a global binder is disjoint: occur in separate branches of a
 -- case-expression.
-isDisjoint :: CaseTree ([Either Term Type])
+isDisjoint :: CaseTree [Either Term Type]
            -> Bool
 isDisjoint (Branch _ [_]) = False
 isDisjoint ct = go ct
   where
+    go :: (CaseTree [Either Term Type] -> Bool)
     go (Leaf _)             = False
     go (LB _ ct')           = go ct'
     go (Branch _ [])        = False
     go (Branch _ [(_,x)])   = go x
-    go b@(Branch _ (_:_:_)) = allEqual (map Either.rights (Foldable.toList b))
+    go b@(Branch _ (_:_:_)) =
+      allEqual @[Aeq Type] (coerce (map Either.rights (Foldable.toList b)))
 
 -- Remove empty branches from a 'CaseTree'
 removeEmpty :: Eq a => CaseTree [a] -> CaseTree [a]
@@ -256,15 +259,19 @@ removeEmpty (LB lb ct) =
     Leaf [] -> Leaf []
     ct'     -> LB lb ct'
 removeEmpty (Branch s bs) =
-  case filter ((/= (Leaf [])) . snd) (map (second removeEmpty) bs) of
+  case filter (not . isEmptyLeaf . snd) (map (second removeEmpty) bs) of
     []  -> Leaf []
     bs' -> Branch s bs'
+ where
+  isEmptyLeaf (Leaf []) = True
+  isEmptyLeaf _ = False
 
 -- | Test if all elements in a list are equal to each other.
 allEqual :: Eq a => [a] -> Bool
 allEqual []     = True
 allEqual (x:xs) = all (== x) xs
 
+{-# ANN collectGlobals' ("HLint: ignore Use if" :: String) #-}
 -- | Collect 'CaseTree's for (potentially) disjoint applications of globals out
 -- of an expression. Also substitute truly disjoint applications of globals by a
 -- reference to a lifted out application.
@@ -298,7 +305,7 @@ collectGlobals' is0 substitution seen e@(collectArgsTicks -> (fun, args@(_:_), t
     let (ids1,ids2) = splitSupply ids
     uniqSupply Lens..= ids2
     gh <- Lens.use globalHeap
-    let eval = (Lens.view Lens._3) . whnf' evaluate bndrs tcm gh ids1 is0 False
+    let eval = Lens.view Lens._3 . whnf' evaluate bndrs tcm gh ids1 is0 False
     let eTy  = inferCoreTypeOf tcm e
     untran <- isUntranslatableType False eTy
     case untran of
@@ -314,8 +321,8 @@ collectGlobals' is0 substitution seen e@(collectArgsTicks -> (fun, args@(_:_), t
         let seenInArgs = map fst collectedArgs ++ seen
         isInteresting <- interestingToLift is0 eval fun args ticks
         case isInteresting of
-          Just fun1 | fun1 `notElem` seenInArgs -> do
-            let e1 = Maybe.fromMaybe (mkApps fun1 args1) (List.lookup fun1 substitution)
+          Just fun1 | Aeq fun1 `notElem` coerce @[Term] @[Aeq Term] seenInArgs -> do
+            let e1 = Maybe.fromMaybe (mkApps fun1 args1) (List.lookup (Aeq fun1) (coerce substitution))
             -- This function is lifted out an environment with the currently 'seen'
             -- binders. When we later apply substitution, we need to start with this
             -- environment, otherwise we perform incorrect substitutions in the
@@ -373,7 +380,7 @@ collectGlobalsArgs
   -> NormalizeSession
        ( [Either Term Type]
        , InScopeSet
-       , [(Term, ([Term], CaseTree [(Either Term Type)]))]
+       , [(Term, ([Term], CaseTree [Either Term Type]))]
        )
 collectGlobalsArgs is0 substitution seen args = do
     ((is1,_),(args',collected)) <- second unzip <$> List.mapAccumLM go (is0,seen) args
@@ -397,14 +404,16 @@ collectGlobalsAlts ::
   -> NormalizeSession
        ( [Alt]
        , InScopeSet
-       , [(Term, ([Term], CaseTree [(Either Term Type)]))]
+       , [(Term, ([Term], CaseTree [Either Term Type]))]
        )
-collectGlobalsAlts is0 substitution seen scrut alts = do
-    (is1,(alts',collected)) <- second unzip <$> List.mapAccumLM go is0 alts
-    let collectedM  = map (Map.fromList . map (second (second (:[])))) collected
-        collectedUN = Map.unionsWith (\(l1,r1) (l2,r2) -> (List.nub (l1 ++ l2),r1 ++ r2)) collectedM
-        collected'  = map (second (second (Branch scrut))) (Map.toList collectedUN)
-    return (alts',is1,collected')
+collectGlobalsAlts is0 substitution seen scrut alts0 = do
+    (is1, (alts1, collected0)) <- second unzip <$> List.mapAccumLM go is0 alts0
+    let
+      collected1 = coerce collected0 :: [[(Aeq Term, ([Aeq Term], (Pat, CaseTree [Either (Aeq Term) (Aeq Type)])))]]
+      collectedM  = map (Map.fromList . map (second (second (:[])))) collected1
+      collectedUN = Map.unionsWith (\(l1,r1) (l2,r2) -> (List.nubOrd (l1 ++ l2),r1 ++ r2)) collectedM
+      collected2  = map (second (second (Branch scrut))) (Map.toList collectedUN)
+    return (alts1, is1, coerce collected2)
   where
     go isN0 (p,e) = do
       let isN1 = extendInScopeSetList isN0 (snd (patIds p))
@@ -423,7 +432,7 @@ collectGlobalsLbs ::
   -> NormalizeSession
        ( [LetBinding]
        , InScopeSet
-       , [(Term, ([Term], CaseTree [(Either Term Type)]))]
+       , [(Term, ([Term], CaseTree [Either Term Type]))]
        )
 collectGlobalsLbs is0 substitution seen lbs = do
     let lbsSCCs = sccLetBindings lbs
@@ -435,7 +444,7 @@ collectGlobalsLbs is0 substitution seen lbs = do
        -> NormalizeSession
             ( (InScopeSet, [Term])
             , ( Graph.SCC LetBinding
-              , [(Term, ([Term], CaseTree [(Either Term Type)]))]
+              , [(Term, ([Term], CaseTree [Either Term Type]))]
               )
             )
     go (isN0,s) (Graph.AcyclicSCC (id_, e)) = do
@@ -455,7 +464,7 @@ collectGlobalsLbs is0 substitution seen lbs = do
     -- there exists a solution that can traverse recursive let-bindings,
     -- finding more opportunities for DEC, while not introducing combinational
     -- loops.
-    go acc scc@(Graph.CyclicSCC {}) = return (acc,(scc,[]))
+    go acc scc@Graph.CyclicSCC {} = return (acc,(scc,[]))
 
 -- | Given a case-tree corresponding to a disjoint interesting \"term-in-a-
 -- function-position\", return a let-expression: where the let-binding holds
@@ -467,21 +476,22 @@ mkDisjointGroup
   :: InScopeSet
   -- ^ Variables in scope at the very top of the case-tree, i.e., the original
   -- expression
-  -> (Term,([Term],CaseTree [(Either Term Type)]))
+  -> (Term,([Term],CaseTree [Either Term Type]))
   -- ^ Case-tree of arguments belonging to the applied term.
   -> NormalizeSession (Term,[Term])
-mkDisjointGroup inScope (fun,(seen,cs)) = do
-    let argss    = Foldable.toList cs
+mkDisjointGroup inScope (fun, (seen, cs0)) = do
+    let cs1      = coerce @_ @(CaseTree [Either (Aeq Term) (Aeq Type)]) cs0
+        argss    = Foldable.toList cs1
         argssT   = zip [0..] (List.transpose argss)
-        (sharedT,distinctT) = List.partition (areShared inScope . snd) argssT
-        shared   = map (second head) sharedT
-        distinct = map (Either.lefts) (List.transpose (map snd distinctT))
-        cs'      = fmap (zip [0..]) cs
-        cs''     = removeEmpty
+        (sharedT,distinctT) = List.partition (coerce areShared inScope . snd) argssT
+        shared   = map (second head) sharedT :: [(Int, Either (Aeq Term) (Aeq Type))]
+        distinct = map Either.lefts (List.transpose (map snd distinctT))
+        cs2      = fmap (zip [0..]) cs1
+        cs3      = removeEmpty
                  $ fmap (Either.lefts . map snd)
                         (if null shared
-                           then cs'
-                           else fmap (filter (`notElem` shared)) cs')
+                           then cs2
+                           else fmap (filter (`notElem` shared)) cs2)
     tcm <- Lens.view tcCache
     (distinctCaseM,distinctProjections) <- case distinct of
       -- only shared arguments: do nothing.
@@ -489,8 +499,8 @@ mkDisjointGroup inScope (fun,(seen,cs)) = do
       -- Create selectors and projections
       (uc:_) -> do
         let argTys = map (inferCoreTypeOf tcm) uc
-        disJointSelProj inScope argTys cs''
-    let newArgs = mkDJArgs 0 shared distinctProjections
+        disJointSelProj inScope argTys (coerce cs3)
+    let newArgs = mkDJArgs 0 (coerce shared) distinctProjections
     case distinctCaseM of
       Just lb -> return (Letrec [lb] (mkApps fun newArgs), seen)
       Nothing -> return (mkApps fun newArgs, seen)
@@ -551,7 +561,7 @@ disJointSelProj inScope argTys cs = do
 -- * Are all equal
 areShared :: InScopeSet -> [Either Term Type] -> Bool
 areShared _       []       = True
-areShared inScope xs@(x:_) = noFV1 && allEqual xs
+areShared inScope xs@(x:_) = noFV1 && allEqual @(Either (Aeq Term) (Aeq Type)) (coerce xs)
  where
   noFV1 = case x of
     Right ty -> getAll (Lens.foldMapOf (typeFreeVars' isLocallyBound IntSet.empty)
@@ -681,15 +691,16 @@ interestingToLift
   -- ^ Tick annoations
   -> RewriteMonad extra (Maybe Term)
 interestingToLift inScope _ e@(Var v) _ ticks =
-  if NoDeDup `notElem` ticks && (isGlobalId v ||  v `elemInScopeSet` inScope)
+  if Aeq NoDeDup `notElem` coerce @_ @[Aeq TickInfo] ticks && (isGlobalId v ||  v `elemInScopeSet` inScope)
      then pure (Just e)
      else pure Nothing
 interestingToLift inScope eval e@(Prim pInfo) args ticks
-  | NoDeDup `notElem` ticks = do
-  let anyArgNotConstant = any (not . isConstant) lArgs
+  -- TODO: Not sure why type inference needs so much help here..
+  | Aeq NoDeDup `notElem` coerce @_ @[Aeq TickInfo] ticks = do
+  let anyArgNotConstant = not (all isConstant lArgs)
   case List.lookup (primName pInfo) interestingPrims of
     Just t | t || anyArgNotConstant -> pure (Just e)
-    _ | DeDup `elem` ticks -> pure (Just e)
+    _ | Aeq DeDup `elem` coerce @_ @[Aeq TickInfo] ticks -> pure (Just e)
     _ -> do
       let isInteresting = (\(x, y, z) -> interestingToLift inScope eval x y z) . collectArgsTicks
       if isHOTy (coreTypeOf pInfo) then do

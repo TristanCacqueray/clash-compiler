@@ -11,6 +11,7 @@ Utility class to extract type information from data which has a type.
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Clash.Core.HasType
   ( HasType(..)
@@ -48,6 +49,7 @@ import Clash.Debug (debugIsOn)
 import Clash.Unique (lookupUniqMap')
 import Clash.Util (curLoc, pprPanic)
 import qualified Clash.Util.Interpolate as I
+import Data.Coerce (coerce)
 
 class HasType a where
   coreTypeOf :: a -> Type
@@ -123,6 +125,9 @@ instance InferType Type where
             go (AppTy c d) args = go c (d : args)
             go c args = piResultTys tcm (inferCoreTypeOf tcm c) args
 
+instance InferType (Aeq Type) where
+  inferCoreTypeOf tcm = inferCoreTypeOf tcm . coerce @_ @Type
+
 instance InferType Term where
   inferCoreTypeOf tcm = go
    where
@@ -146,6 +151,9 @@ instance InferType Term where
       Case _ ty _ -> ty
       Cast _ _ a -> a
       Tick _ x -> go x
+
+instance InferType (Aeq Term) where
+  inferCoreTypeOf tcm = inferCoreTypeOf tcm . coerce @_ @Term
 
 -- | Get the result type of a polymorphic function given a list of arguments
 applyTypeToArgs

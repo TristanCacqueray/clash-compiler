@@ -18,6 +18,7 @@ import Clash.Core.TyCon
 import Clash.Core.Type
 import Clash.Core.Var
 import Clash.Core.VarEnv (VarSet, elemVarSet, emptyVarSet, mkVarSet)
+import Clash.Core.Subst (aeqType)
 #if MIN_VERSION_ghc(9,0,0)
 import Clash.Core.DataCon (dcUniq)
 import GHC.Builtin.Names (unsafeReflDataConKey)
@@ -32,7 +33,11 @@ data TypeEqSolution
   -- ^ A solution was found, but it involved negative naturals.
   | NoSolution
   -- ^ Given type wasn't an equation, or it was unsolvable.
-    deriving (Show, Eq)
+    deriving (Show)
+
+isAbsurdSolution :: TypeEqSolution -> Bool
+isAbsurdSolution AbsurdSolution = True
+isAbsurdSolution _ = False
 
 catSolutions :: [TypeEqSolution] -> [(TyVar, Type)]
 catSolutions = mapMaybe getSol
@@ -68,10 +73,10 @@ solveEq tcm solveSet (coreView tcm -> left, coreView tcm -> right) =
       [Solution (tyVar, left)]
     (ConstTy {}, ConstTy {}) ->
       -- Int /= Char
-      if left /= right then [AbsurdSolution] else []
+      if not (left `aeqType` right) then [AbsurdSolution] else []
     (LitTy {}, LitTy {}) ->
       -- 3 /= 5
-      if left /= right then [AbsurdSolution] else []
+      if not (left `aeqType` right) then [AbsurdSolution] else []
     _ ->
       -- The call to 'coreView' at the start of 'solveEq' should have reduced
       -- all solvable type families. If we encounter one here that means the
@@ -161,7 +166,7 @@ isAbsurdEq
 isAbsurdEq tcm exts ((left0, right0)) =
   case (coreView tcm left0, coreView tcm right0) of
     (solveAdd exts -> AbsurdSolution) -> True
-    lr -> any (==AbsurdSolution) (solveEq tcm exts lr)
+    lr -> any isAbsurdSolution (solveEq tcm exts lr)
 
 -- | Get constraint equations
 patEqs

@@ -18,7 +18,7 @@ import Data.Maybe  (fromJust)
 import qualified Data.ByteString.Lazy as BL
 
 import Clash.Core.Term     ( Term (..), LetBinding, Pat (..), Alt
-                           , Context, CoreContext (..) )
+                           , Context, CoreContext (..), aeqTickInfo )
 import Clash.Core.Var      (Id)
 import Clash.Rewrite.Types (RewriteStep (..))
 import Clash.Core.Pretty   ( ClashDoc, ClashAnnotation (..), SyntaxElement (..)
@@ -123,7 +123,7 @@ instance Diff Term where
         (Cast t ty ty', CastBody) ->
           Cast (go t) ty ty'
         (Tick ti x, TickC ti') ->
-          if ti == ti'
+          if ti `aeqTickInfo` ti'
             then Tick ti (go x)
             else error $ "Ctx.Tick: different ticks " ++ show (ti, ti')
         _ -> error "patch: context does not agree with term"

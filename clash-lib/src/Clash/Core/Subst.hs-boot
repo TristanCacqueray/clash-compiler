@@ -18,4 +18,4 @@ aeqType
   -> Type
   -> Bool
 
-instance Eq Type
+newtype Aeq a = Aeq a

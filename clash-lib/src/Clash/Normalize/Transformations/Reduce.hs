@@ -28,10 +28,10 @@ import GHC.Stack (HasCallStack)
 import Clash.Core.FreeVars (typeFreeVars)
 import Clash.Core.HasType
 import Clash.Core.Name (nameOcc)
-import Clash.Core.Subst (Subst, extendIdSubst, substTm)
+import Clash.Core.Subst (Subst, extendIdSubst, substTm, aeqTerm)
 import Clash.Core.Term
   ( LetBinding, PrimInfo(..), Term(..), TickInfo(..), collectArgs
-  , collectArgsTicks, mkApps, mkTicks)
+  , collectArgsTicks, mkApps, mkTicks, aeqTickInfo)
 import Clash.Core.TyCon (tyConDataCons)
 import Clash.Core.Type (TypeView(..), mkTyConApp, tyView)
 import Clash.Core.Util (mkVec, shouldSplit, tyNatSize)
@@ -62,8 +62,8 @@ reduceBinders
 reduceBinders !subst processed [] = return (subst,processed)
 reduceBinders !subst processed ((i,substTm "reduceBinders" subst -> e):rest)
   | (_,_,ticks) <- collectArgsTicks e
-  , NoDeDup `notElem` ticks
-  , Just (i1,_) <- List.find ((== e) . snd) processed
+  , not (any (`aeqTickInfo` NoDeDup) ticks)
+  , Just (i1,_) <- List.find ((`aeqTerm` e) . snd) processed
   = do
     let subst1 = extendIdSubst subst i (Var i1)
     setChanged

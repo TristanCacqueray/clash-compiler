@@ -13,6 +13,7 @@ import Clash.Core.VarEnv
   (mkInScopeSet, mkVarSet, mkVarEnv, emptyVarEnv, extendInScopeSetList)
 import Clash.Core.FreeVars (countFreeOccurances)
 import Clash.Core.Term
+import Clash.Core.Subst (Aeq(..), aeqTerm)
 import Clash.Unique (UniqSet, extendUniqSet, unitUniqSet)
 
 import Test.Tasty
@@ -127,7 +128,7 @@ tests :: TestTree
 tests =
   testGroup
     "Clash.Tests.Core.Util.Interpolation"
-    [ testCase "T1337a" $ t1337a_result @=? t1337a
-    , testCase "T1337b" $ t1337b_result @=? t1337b
-    , testCase "T1337c" $ t1337c_result @=? t1337c
+    [ testCase "T1337a" $ Aeq t1337a_result @=? Aeq t1337a
+    , testCase "T1337b" $ Aeq t1337b_result @=? Aeq t1337b
+    , testCase "T1337c" $ Aeq t1337c_result @=? Aeq t1337c
     ]

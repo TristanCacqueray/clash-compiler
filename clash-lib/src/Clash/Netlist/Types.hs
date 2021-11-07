@@ -47,6 +47,7 @@ import Data.HashSet                         (HashSet)
 import qualified Data.List                  as List
 import Data.IntMap                          (IntMap, empty)
 import Data.Map.Ordered                     (OMap)
+import Data.Map                             (Map)
 import Data.Maybe                           (mapMaybe)
 import Data.Monoid                          (Ap(..))
 import qualified Data.Set                   as Set
@@ -71,6 +72,7 @@ import Clash.Backend                        (Backend)
 import Clash.Core.HasType
 import Clash.Core.Type                      (Type)
 import Clash.Core.Var                       (Attr', Id)
+import Clash.Core.Subst                     (Aeq)
 import Clash.Core.TyCon                     (TyConMap)
 import Clash.Core.VarEnv                    (VarEnv)
 import Clash.Driver.Types                   (BindingMap, ClashOpts)
@@ -126,7 +128,7 @@ newtype NetlistMonad a =
   deriving newtype (Functor, Monad, Applicative, MonadReader NetlistEnv,
                     Strict.MonadState NetlistState, Strict.MonadIO, MonadFail)
 
-type HWMap = HashMap Type (Either String FilteredHWType)
+type HWMap = Map (Aeq Type) (Either String FilteredHWType)
 
 -- | See 'is_freshCache'
 type FreshCache = HashMap Text (IntMap Word)

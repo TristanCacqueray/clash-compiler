@@ -88,7 +88,7 @@ instance Default extra => Default (RewriteState extra) where
 instance Default NormalizeState where
   def = NormalizeState
     { _normalized=emptyVarEnv
-    , _specialisationCache=Map.empty
+    , _specializationCache=Map.empty
     , _specialisationHistory=emptyVarEnv
     , _specialisationLimit=20
     , _inlineHistory=emptyVarEnv

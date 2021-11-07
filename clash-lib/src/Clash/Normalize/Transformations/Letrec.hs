@@ -307,11 +307,11 @@ recToLetRec (TransformContext is0 []) e = do
     eqApp _ _ _ _ = False
 
     eqArg _ v1 v2@(stripTicks -> Var {})
-      = v1 == v2
+      = v1 `aeqTerm` v2
     eqArg tcm v1 v2@(collectArgs . stripTicks -> (Data _, args'))
       | let t1 = normalizeType tcm (inferCoreTypeOf tcm v1)
       , let t2 = normalizeType tcm (inferCoreTypeOf tcm v2)
-      , t1 == t2
+      , t1 `aeqType` t2
       = if isClassConstraint t1 then
           -- Class constraints are equal if their types are equal, so we can
           -- take a shortcut here.
