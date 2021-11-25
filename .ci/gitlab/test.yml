@@ -15,15 +15,17 @@ stages:
     - export THREADS=$(./.ci/effective_cpus.sh)
     - export CABAL_JOBS=$(./.ci/effective_cpus.sh)
     - export
-    - tar -xf cache.tar.zst -C / || true
-    - tar -xf dist.tar.zst -C /
+    - tar -xf /root/cache.tar.zst -C / || true
+    - rm /root/cache.tar.zst
+    - tar -xf /root/dist.tar.zst -C /
+    - rm /root/dist.tar.zst
     - .ci/setup.sh
 
     # Not all package in cache get packed into dist.tar.zst, so we need to
     # regenerate the package database
     - ghc-pkg recache --package-db=$HOME/.cabal/store/ghc-$GHC_VERSION/package.db
   after_script:
-    - tar -cf - /root/.cabal/packages | zstd -T${THREADS} -3 > cache.tar.zst
+    - tar --remove-files -cf - /root/.cabal/packages | zstd -T${THREADS} -3 > /root/cache.tar.zst
   tags:
     - local
 
@@ -41,13 +43,13 @@ build:
     when: always
     name: "$CI_JOB_NAME-$CI_COMMIT_SHA-$GHC_VERSION"
     paths:
-      - dist.tar.zst
+      - /root/dist.tar.zst
     expire_in: 1 day
   script:
     - .ci/build.sh
 
     # Archive all build files (from .cabal and dist-newstyle)
-    - tar -cf - $(.ci/get_build_dist.sh) | zstd -T${THREADS} -15 > dist.tar.zst
+    - tar --remove-files -cf - $(.ci/get_build_dist.sh) | zstd -T${THREADS} -15 > /root/dist.tar.zst
 
 build-clash-dev:
   extends: .test-common
