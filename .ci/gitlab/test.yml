@@ -15,8 +15,6 @@ stages:
     - export THREADS=$(./.ci/effective_cpus.sh)
     - export CABAL_JOBS=$(./.ci/effective_cpus.sh)
     - export
-    - tar -xf /root/cache.tar.zst -C / || true
-    - rm /root/cache.tar.zst
     - tar -xf /root/dist.tar.zst -C /
     - rm /root/dist.tar.zst
     - .ci/setup.sh
@@ -24,8 +22,6 @@ stages:
     # Not all package in cache get packed into dist.tar.zst, so we need to
     # regenerate the package database
     - ghc-pkg recache --package-db=$HOME/.cabal/store/ghc-$GHC_VERSION/package.db
-  after_script:
-    - tar --remove-files -cf - /root/.cabal/packages | zstd -T${THREADS} -3 > /root/cache.tar.zst
   tags:
     - local
 
