@@ -79,7 +79,8 @@ RUN git clone https://github.com/cliffordwolf/SymbiYosys.git SymbiYosys \
 
 FROM builder AS build-ghc
 
-ARG ghcup_version="0.1.15.2"
+ENV GHCUP_INSTALL_BASE_PREFIX "/usr/share"
+ARG ghcup_version="0.1.17.4"
 
 # Must be explicitly set
 ARG ghc_version
@@ -94,7 +95,7 @@ ARG UBUNTU_VERSION=focal-20210416
 FROM ubuntu:$UBUNTU_VERSION AS run
 
 LABEL vendor="QBayLogic B.V." maintainer="devops@qbaylogic.com"
-ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PATH="$PATH:/opt/bin:/root/.ghcup/bin"
+ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8 PATH="$PATH:/opt/bin:/usr/share/.ghcup/bin"
 
 ARG DEPS_RUNTIME="ca-certificates curl gcc git jq libc6-dev libgmp10-dev libgnat-9 libllvm11 libreadline8 libtinfo-dev libtcl8.6 make python3 ssh zlib1g-dev zstd"
 RUN apt-get update \
@@ -105,4 +106,4 @@ RUN apt-get update \
 COPY --from=build-ghdl /opt /opt
 COPY --from=build-iverilog /opt /opt
 COPY --from=build-symbiyosys /opt /opt
-COPY --from=build-ghc /root/.ghcup /root/.ghcup
+COPY --from=build-ghc /usr/share/.ghcup /usr/share/.ghcup
