@@ -78,7 +78,7 @@ lib:unittests:
 prelude:doctests:
   extends: .test-common-local
   script:
-    - cabal v2-run clash-prelude:doctests
+    - cabal v2-run -- clash-prelude:doctests -j${THREADS}
 
 suite:vhdl:
   extends: .test-common-local
