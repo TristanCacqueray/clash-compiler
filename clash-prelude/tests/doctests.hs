@@ -1,14 +1,7 @@
-{-# LANGUAGE CPP #-}
-
 module Main where
 
-import Build_doctests (flags, pkgs, module_sources)
-import Data.Foldable (traverse_)
-import Test.DocTest (doctest)
+import Test.DocTest (mainFromCabal)
+import System.Environment (getArgs)
 
 main :: IO ()
-main = do
-  traverse_ putStrLn args
-  doctest args
- where
-  args = flags ++ pkgs ++ module_sources
+main = mainFromCabal "clash-prelude" =<< getArgs
